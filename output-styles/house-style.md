@@ -36,5 +36,12 @@ instead. Use "they" for a generic person, never "he/she". Avoid em dashes
 between two words, since a comma, a colon or a full stop is almost always what
 you meant.
 
+Then the reader, who has not seen what you saw. Explain a name the first time
+you use it: a term you coined, a label, a file or a setting gets a few plain
+words that say what it is. When you propose or report a method, say first what
+it needs to work and where it cannot run, such as one provider, a local model
+or a paid service. Give the results after that. Say what you did, what you
+checked and what you left undone.
+
 Substance beats every rule above. When following one would cost you accuracy or
 clarity, break it.

@@ -2,6 +2,22 @@
 
 Newest first. One finding each.
 
+## 2026-10-10, the card tells the agent to explain its names and to say what a method needs
+
+A session reported for three days on a method it called "continuation" and
+never said that the method runs on a local model only. Every sentence of those
+reports could pass the lint. The fault was a missing fact, and a rule set that
+reads sentences cannot see one. So the card has a fourth paragraph, about the
+reader: explain a name the first time you use it, say what a method needs and
+where it cannot run before you give results, and say what you did, checked and
+left undone. It costs about 80 words of system prompt in every session.
+
+The Stop hook still does not send a flagged answer back for a rewrite. Claude
+Code shows an answer as the model writes it, and a hook that refuses the end of
+a turn makes the model write a second answer under the first. The user reads
+both. No hook runs between the model and the screen, so a rewrite of the answer
+cannot be hidden.
+
 ## 2026-09-27, the project's textoic.config.json can switch rules off and ignore cases
 
 The Textoic editors share an eslint-style config file, and enlint 0.2.0 can
