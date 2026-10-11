@@ -119,8 +119,11 @@ Codex on Windows often writes files through PowerShell rather than its patch
 tool, and no hook sees what a shell command wrote. So the Stop hook also looks
 for prose files created during the turn, under the folder the agent runs in. It
 takes only files born during the turn, because for a file that already existed
-it cannot tell the agent's text from yours. Claude gets the same check, which
-covers the files it writes through Bash.
+it cannot tell the agent's text from yours. When a turn creates more than five
+prose files, a program wrote them and the hook leaves all of them alone. Claude
+does not get this check: its Write and Edit calls reach the hook with a path,
+so a file a Claude turn makes through Bash is the output of a command and stays
+as it is. The background worker runs three rewriters at a time.
 
 ## Developing
 

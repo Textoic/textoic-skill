@@ -106,6 +106,28 @@ test("replaces a document in place when the rewrite is better", async () => {
   assert.equal(await readFile(document, "utf8"), GOOD);
 });
 
+test("runs at most three rewriters at a time and keeps the order of the items", async () => {
+  const folder = await tempFolder();
+  const names = Array.from({ length: 8 }, (_, index) => join(folder, `plan-${index}.md`));
+  await Promise.all(names.map((path) => writeFile(path, BAD, "utf8")));
+  const running = { now: 0, most: 0 };
+  const slowly = async () => {
+    running.now += 1;
+    running.most = Math.max(running.most, running.now);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    running.now -= 1;
+    return { text: GOOD, cost: 0 };
+  };
+
+  const outcomes = await runJob({ items: names.map((path) => ({ kind: "file", path, source: BAD })) }, slowly);
+  assert.equal(running.most, 3);
+  assert.deepEqual(
+    outcomes.map(({ applied }) => applied),
+    names.map(() => true),
+  );
+  assert.deepEqual(await runJob({ items: [] }, slowly), []);
+});
+
 test("replaces only the passage an edit added", async () => {
   const document = join(await tempFolder(), "notes.md");
   await writeFile(document, `# Notes\n\nKept as it was.\n\n${BAD}\nAlso kept.\n`, "utf8");

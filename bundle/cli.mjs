@@ -8,7 +8,7 @@ import {
   historyPath,
   mechanically,
   verdictOf
-} from "./chunk-KGMKXV4N.mjs";
+} from "./chunk-XQTXSFFL.mjs";
 import {
   allProblems,
   allRules,

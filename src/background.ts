@@ -126,5 +126,24 @@ const settleItem = async (item: Item, rewrite: Rewriter, via: Harness) => {
   return outcome;
 };
 
+const AT_ONCE = 3;
+
+const inLanes = async <Given, Made>(given: Given[], make: (one: Given) => Promise<Made>) => {
+  const made: Made[] = [];
+  const waiting = given.map((one, index) => ({ one, index }));
+  const lane = async (): Promise<void> => {
+    const next = waiting.shift();
+    if (next == null) {
+      return;
+    }
+
+    made[next.index] = await make(next.one);
+    await lane();
+  };
+
+  await Promise.all(Array.from({ length: AT_ONCE }, lane));
+  return made;
+};
+
 export const runJob = (job: Job, rewrite: Rewriter) =>
-  Promise.all(job.items.map((item) => settleItem(item, rewrite, job.harness ?? "claude")));
+  inLanes(job.items, (item) => settleItem(item, rewrite, job.harness ?? "claude"));

@@ -65,9 +65,11 @@ const flaggedAnswer = (answer: string, limits: Limits) => {
 
 const HARNESSES: Harness[] = ["claude", "codex"];
 
+export const isCodexTurn = (payload: StopPayload) => typeof payload.turn_id === "string";
+
 export const harnessOf = (payload: StopPayload): Harness => {
   const chosen = HARNESSES.find((harness) => harness === process.env.ENLINT_REWRITER);
-  return chosen ?? (typeof payload.turn_id === "string" ? "codex" : "claude");
+  return chosen ?? (isCodexTurn(payload) ? "codex" : "claude");
 };
 
 const noteFor = (found: string) =>
@@ -88,20 +90,29 @@ const notice = (found: string, items: Item[]) =>
     .filter((part) => part !== "")
     .join("; ")}`;
 
-const createdItems = async (session: string, pending: Pending): Promise<Item[]> => {
-  const turn = await turnOf(session);
-  if (turn == null) {
-    return [];
-  }
+const MOST_CREATED = 5;
 
-  const known = new Set([...pending.wrote, ...pending.edited.keys()]);
-  const created = (await createdDuring(turn)).filter((path) => !known.has(path));
-  return Promise.all(created.map(async (path): Promise<Item> => ({ kind: "file", path, source: await readable(path) })));
+const createdBy = async (session: string, writesThroughShell: boolean) => {
+  const turn = writesThroughShell ? await turnOf(session) : null;
+  return turn == null ? [] : createdDuring(turn);
 };
 
-const documentItems = async (session: string, limits: Limits) => {
+const looksHandWritten = (unseen: string[]) => unseen.length <= MOST_CREATED;
+
+const createdItems = async (session: string, pending: Pending, writesThroughShell: boolean): Promise<Item[]> => {
+  const known = new Set([...pending.wrote, ...pending.edited.keys()]);
+  const unseen = (await createdBy(session, writesThroughShell)).filter((path) => !known.has(path));
+  const taken = looksHandWritten(unseen) ? unseen : [];
+  return Promise.all(taken.map(async (path): Promise<Item> => ({ kind: "file", path, source: await readable(path) })));
+};
+
+const documentItems = async (session: string, limits: Limits, writesThroughShell: boolean) => {
   const pending = await takePending(session);
-  const items = [...(await writtenItems(pending)), ...editedItems(pending), ...(await createdItems(session, pending))];
+  const items = [
+    ...(await writtenItems(pending)),
+    ...editedItems(pending),
+    ...(await createdItems(session, pending, writesThroughShell)),
+  ];
   return items.filter(worthRewriting(limits));
 };
 
@@ -111,7 +122,7 @@ export const atStop = async (payload: StopPayload, limits: Limits, launch: Launc
   }
 
   const session = text(payload.session_id);
-  const items = await documentItems(session, limits);
+  const items = await documentItems(session, limits, isCodexTurn(payload));
   const found = flaggedAnswer(await answerOf(payload), limits);
   await Promise.all([
     items.length === 0 || limits.notifyOnly ? null : launch({ items, harness: harnessOf(payload) }),

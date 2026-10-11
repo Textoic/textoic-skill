@@ -49,9 +49,10 @@ var flaggedAnswer = (answer, limits) => {
   return findings.length < limits.issues ? "" : summary(answer, findings);
 };
 var HARNESSES = ["claude", "codex"];
+var isCodexTurn = (payload) => typeof payload.turn_id === "string";
 var harnessOf = (payload) => {
   const chosen = HARNESSES.find((harness) => harness === process.env.ENLINT_REWRITER);
-  return chosen ?? (typeof payload.turn_id === "string" ? "codex" : "claude");
+  return chosen ?? (isCodexTurn(payload) ? "codex" : "claude");
 };
 var noteFor = (found) => `enlint: your previous answer had ${found}. Write this answer in the house style; do not mention this note.`;
 var workerScript = () => fileURLToPath(new URL("../hooks/rewrite-worker.mjs", import.meta.url));
@@ -63,18 +64,25 @@ var launchWorker = async (job) => {
   spawn(process.execPath, [workerScript(), jobPath], { detached: true, stdio: "ignore", windowsHide: true }).unref();
 };
 var notice = (found, items) => `enlint: ${[found === "" ? "" : `last answer: ${found}`, items.length === 0 ? "" : `${items.length} document passage(s) flagged`].filter((part) => part !== "").join("; ")}`;
-var createdItems = async (session, pending) => {
-  const turn = await turnOf(session);
-  if (turn == null) {
-    return [];
-  }
-  const known = /* @__PURE__ */ new Set([...pending.wrote, ...pending.edited.keys()]);
-  const created = (await createdDuring(turn)).filter((path) => !known.has(path));
-  return Promise.all(created.map(async (path) => ({ kind: "file", path, source: await readable(path) })));
+var MOST_CREATED = 5;
+var createdBy = async (session, writesThroughShell) => {
+  const turn = writesThroughShell ? await turnOf(session) : null;
+  return turn == null ? [] : createdDuring(turn);
 };
-var documentItems = async (session, limits) => {
+var looksHandWritten = (unseen) => unseen.length <= MOST_CREATED;
+var createdItems = async (session, pending, writesThroughShell) => {
+  const known = /* @__PURE__ */ new Set([...pending.wrote, ...pending.edited.keys()]);
+  const unseen = (await createdBy(session, writesThroughShell)).filter((path) => !known.has(path));
+  const taken = looksHandWritten(unseen) ? unseen : [];
+  return Promise.all(taken.map(async (path) => ({ kind: "file", path, source: await readable(path) })));
+};
+var documentItems = async (session, limits, writesThroughShell) => {
   const pending = await takePending(session);
-  const items = [...await writtenItems(pending), ...editedItems(pending), ...await createdItems(session, pending)];
+  const items = [
+    ...await writtenItems(pending),
+    ...editedItems(pending),
+    ...await createdItems(session, pending, writesThroughShell)
+  ];
   return items.filter(worthRewriting(limits));
 };
 var atStop = async (payload, limits, launch = launchWorker) => {
@@ -82,7 +90,7 @@ var atStop = async (payload, limits, launch = launchWorker) => {
     return null;
   }
   const session = text(payload.session_id);
-  const items = await documentItems(session, limits);
+  const items = await documentItems(session, limits, isCodexTurn(payload));
   const found = flaggedAnswer(await answerOf(payload), limits);
   await Promise.all([
     items.length === 0 || limits.notifyOnly ? null : launch({ items, harness: harnessOf(payload) }),
@@ -94,5 +102,6 @@ var atStop = async (payload, limits, launch = launchWorker) => {
 export {
   atStop,
   harnessOf,
+  isCodexTurn,
   launchWorker
 };

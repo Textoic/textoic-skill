@@ -1,6 +1,6 @@
 {
   "name": "enlint",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Writes English prose to a house style with the enlint rule set. Puts the style card in the agent's instructions, lints every answer and every document it writes for free, and rewrites flagged documents in the background on the harness's own cheap model.",
   "author": {
     "name": "Luis Fominaya",

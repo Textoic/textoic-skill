@@ -56,17 +56,53 @@ test("finds prose files created during the turn, skipping hidden and vendored fo
   assert.deepEqual(await createdDuring({ at: Date.now() + 60_000, cwd }), []);
 });
 
-test("sends a document written through the shell to the background", async () => {
+const turnWith = async (names: string[]) => {
   const cwd = await mkdtemp(join(tmpdir(), "prose-turn-"));
-  const session = `test-shell-${Date.now()}`;
+  const session = `test-shell-${Date.now()}-${names.length}`;
   await atPrompt({ session_id: session, cwd }, { notes: true, turns: true });
-  await writeFile(join(cwd, "notes.md"), BAD, "utf8");
+  await Promise.all(names.map((name) => writeFile(join(cwd, name), BAD, "utf8")));
+  return { cwd, session };
+};
 
+const launchedAtStop = async (payload: Parameters<typeof atStop>[0]) => {
   const launched: Job[] = [];
-  await atStop({ session_id: session, cwd }, limits, async (job) => {
+  await atStop(payload, limits, async (job) => {
     launched.push(job);
   });
-  assert.deepEqual(launched, [{ items: [{ kind: "file", path: join(cwd, "notes.md"), source: BAD }], harness: "claude" }]);
+  return launched;
+};
+
+test("sends a document Codex wrote through the shell to the background", async () => {
+  const { cwd, session } = await turnWith(["notes.md"]);
+  assert.deepEqual(await launchedAtStop({ session_id: session, cwd, turn_id: "t1" }), [
+    { items: [{ kind: "file", path: join(cwd, "notes.md"), source: BAD }], harness: "codex" },
+  ]);
+});
+
+test("leaves alone a file a Claude turn made through the shell", async () => {
+  const { cwd, session } = await turnWith(["notes.md"]);
+  assert.deepEqual(await launchedAtStop({ session_id: session, cwd }), []);
+});
+
+test("keeps a Claude turn out of the folder scan when Codex is forced as the rewriter", async () => {
+  const { cwd, session } = await turnWith(["notes.md"]);
+  const previous = process.env.ENLINT_REWRITER;
+  process.env.ENLINT_REWRITER = "codex";
+  try {
+    assert.deepEqual(await launchedAtStop({ session_id: session, cwd }), []);
+  } finally {
+    if (previous == null) {
+      delete process.env.ENLINT_REWRITER;
+    } else {
+      process.env.ENLINT_REWRITER = previous;
+    }
+  }
+});
+
+test("leaves alone a batch of files a program wrote during a Codex turn", async () => {
+  const names = Array.from({ length: 6 }, (_, index) => `text-${index}.md`);
+  const { cwd, session } = await turnWith(names);
+  assert.deepEqual(await launchedAtStop({ session_id: session, cwd, turn_id: "t1" }), []);
 });
 
 test("rewrites a Codex turn with Codex and a Claude turn with Claude", async () => {

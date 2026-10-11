@@ -2,6 +2,35 @@
 
 Newest first. One finding each.
 
+## 2026-10-11, the hook rewrote 60 experiment texts and took a machine down
+
+A Claude session ran experiments in `enlint-lab`. Its scripts wrote hundreds
+of model texts as `.md` files under the working folder. The Stop hook's scan
+for files born during the turn took each one for a document the agent wrote,
+and the worker started one `claude` rewriter for every flagged file at once.
+Twice that changed texts before LLM judges read them, and it changed 22 copies
+of the author's own essays that served as the control. On the third run 660
+new files appeared in one turn. The log holds 159 rewrite attempts in one
+minute, the machine ran out of memory, and the session died.
+
+Three changes. A Claude turn no longer scans the folder: Write and Edit reach
+the hook with a path, so a file made through Bash is the output of a command.
+A Codex turn still scans, because Codex on Windows writes through PowerShell,
+but when it finds more than five new prose files that the hook has not seen
+written, they count as the work of a program and none is touched. And
+`runJob` keeps three rewriters running at a time whatever the size of the job.
+
+Who wrote the turn is read from `turn_id`, which only Codex sends.
+`ENLINT_REWRITER` picks the model that rewrites and no longer decides whether
+the folder is scanned.
+
+What a Claude turn loses: a document the agent writes with a shell heredoc is
+no longer rewritten. The answer note still covers what the agent says.
+
+Not capped: each turn end starts its own worker, so several quick turns or
+several sessions can each run three rewriters. A Codex turn may still
+rewrite up to five files that a program made.
+
 ## 2026-10-10, the card tells the agent to explain its names and to say what a method needs
 
 A session reported for three days on a method it called "continuation" and
